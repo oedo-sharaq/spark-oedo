@@ -1,4 +1,5 @@
-from pyspark.sql.functions import DataFrame, explode
+from pyspark.sql.functions import explode
+from pyspark.sql import DataFrame
 from pyspark.ml.feature import Bucketizer
 import matplotlib.pyplot as plt
 import numpy as np

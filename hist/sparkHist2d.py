@@ -1,4 +1,5 @@
-from pyspark.sql.functions import DataFrame, posexplode, row_number, lit
+from pyspark.sql.functions import posexplode, row_number, lit
+from pyspark.sql import DataFrame
 from pyspark.ml.feature import Bucketizer
 from pyspark.sql.window import Window
 import matplotlib.pyplot as plt
