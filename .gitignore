@@ -9,4 +9,5 @@
 !/prm
 !/kafka/
 !/hist/
+!/waveform/
 *.pyc
