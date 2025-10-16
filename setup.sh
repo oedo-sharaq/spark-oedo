@@ -54,7 +54,7 @@ spark_oedo_help() {
 }
 
 # Check if JAR exists
-JAR_PATH="$SPARK_OEDO_HOME/scala_package/target/scala-2.12/spark-oedo-package_2.12-1.0.jar"
+JAR_PATH="$SPARK_OEDO_HOME/scala_package/target/scala-2.13/spark-oedo-package_2.13-1.0.jar"
 if [ ! -f "$JAR_PATH" ]; then
     echo "⚠️  Scala JAR not found. You may need to build the project first."
     echo "   Run: build_spark_oedo"
