@@ -188,7 +188,7 @@ object RidfToParquetSimple {
     import spark.implicits._
     
     // Convert blocks to DataFrame
-    val df = blocks.map(block => (block.blockId, block.blockData)).toDF("block_id", "block_data")
+    val df = spark.createDataFrame(blocks.map(block => (block.blockId, block.blockData)).toSeq).toDF("block_id", "block_data")
     
     // For the first batch, create the directory with overwrite
     // For subsequent batches, append to the same directory

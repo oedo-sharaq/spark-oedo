@@ -270,7 +270,7 @@ object RidfProcessor {
     eventBatches.zipWithIndex.foreach { case (eventBatch, subBatchIndex) =>
       if (eventBatch.nonEmpty) {
         try {
-          val eventsDF = eventBatch.toDF()
+          val eventsDF = spark.createDataFrame(eventBatch.toSeq)
           
           // For the very first sub-batch, overwrite; for all others, append
           val writeMode = if (batchNumber == 0 && subBatchIndex == 0) "overwrite" else "append"

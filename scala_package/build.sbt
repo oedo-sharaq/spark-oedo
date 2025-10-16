@@ -1,9 +1,10 @@
 name := "spark-oedo-package"
 version := "1.0"
-scalaVersion := "2.12.18"
+scalaVersion := "2.13.16"
 
 libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-sql" % "3.5.0" % "provided"
+    "org.apache.spark" %% "spark-sql" % "4.0.0" % "provided",
+    "org.apache.spark" %% "spark-core" % "4.0.0" % "provided"
 )
 
 // Main class for the RIDF converter application (can be overridden with --class)
