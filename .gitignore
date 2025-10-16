@@ -10,4 +10,6 @@
 !/kafka/
 !/hist/
 !/waveform/
+!/scala_package/
+!/bin/
 *.pyc
