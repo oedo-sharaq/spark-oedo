@@ -1,23 +1,68 @@
-# RIDF Block Decoder UDF
+# Spark-OEDO Scala Package
 
-This Scala UDF decodes RIDF (RIKEN Ion-beam Data Format) block data for use in Apache Spark.
+This Scala package provides comprehensive data processing tools for the OEDO experimental system, including RIDF (RIKEN Ion-beam Data Format) processing and MIRA raw data decoding.
 
 ## Overview
 
-The RIDF Block Decoder UDF takes binary block data as input and outputs decoded event information including:
-- `run_number`: The run number extracted from comment headers
+The package contains two main components:
+
+### 1. RIDF Block Decoder UDF
+For processing RIDF block data in Apache Spark, extracting:
+- `run_number`: Run number from comment headers
 - `event_number`: Event number for each event
-- `timestamp`: Event timestamp (for events with timestamp headers)  
+- `timestamp`: Event timestamp from headers  
 - `segments`: Array of segment data structures
 
-Each segment contains:
-- `fFP`: FP (Focal Plane) identifier
-- `fDevice`: Device identifier
-- `fDetector`: Detector identifier  
-- `fModule`: Module identifier
-- `fAddress`: Memory address
-- `size`: Data size in bytes
-- `data`: Binary segment data
+### 2. MIRA Decoder
+Complete Scala translation of the C++ MIRA raw data decoder with:
+- **RIDF Format Parsing**: Full support for MIRA's RIDF binary format
+- **Apache Arrow Output**: Returns Arrow tables instead of C++ vectors
+- **Parquet Writing**: Built-in Parquet file writing with compression
+- **Event Decoding**: Faithful translation of decode_buffer() and decode_an_event()
+- **Waveform Analysis**: QDC/ADC calculations and channel processing
+
+## Features
+
+### RIDF Processing
+- Binary block data decoding
+- Segment extraction with metadata
+- Spark UDF integration for distributed processing
+
+### MIRA Decoder Features
+- **Immutable Data Structures**: Scala case classes for type safety
+- **Timestamp Extraction**: 64-bit timestamp reconstruction from RIDF headers
+- **Channel Data Processing**: Multi-channel waveform support
+- **Arrow Table Output**: Native Arrow table creation with proper schema
+- **Parquet Support**: Compressed output with Snappy compression
+
+## Quick Start
+
+### Prerequisites
+- Scala 2.13+
+- Apache Spark 4.0.0
+- SBT (Scala Build Tool)
+- Java 8+
+
+### Building
+```bash
+cd scala_package
+sbt compile
+```
+
+### MIRA Decoder Usage
+```bash
+# Basic usage
+sbt "runMain MiraDecoderMain input_data.dat"
+
+# Specify output file and channels
+sbt "runMain MiraDecoderMain input_data.dat output.parquet 0 1 2"
+```
+
+### RIDF Processing Usage
+```bash
+# Run RIDF to Parquet converter
+sbt "runMain RidfToParquetSimple input.ridf output.parquet"
+```
 
 ## Usage
 
