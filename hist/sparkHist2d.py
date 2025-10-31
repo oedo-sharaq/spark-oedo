@@ -81,7 +81,7 @@ def Hist2D(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int
 
     # Print statistics
     print("Statistics:")
-    print(statArray)
+    print(np.flip(np.swapaxes(statArray, 0, 1),0))
     return counts
 
 def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], **kwargs) -> np.ndarray:
