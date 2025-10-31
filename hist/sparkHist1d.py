@@ -81,7 +81,7 @@ def Hist1D(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, f
 
     return bin_centers, counts
 
-def Hist1DArrays(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, float]) -> tuple[np.ndarray,np.ndarray]:
+def Hist1DArrays(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, float], **kwargs) -> tuple[np.ndarray,np.ndarray]:
     """
     Plot 1D histogram of the column named colName.
     The column stores an array of values.
@@ -100,4 +100,4 @@ def Hist1DArrays(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[fl
     dataFrame = dataFrame.select(colName)
     exploded_df = dataFrame.select(explode(colName).alias(colName))
 
-    return Hist1D(exploded_df, colName, nbins, range)
+    return Hist1D(exploded_df, colName, nbins, range, **kwargs)

@@ -84,7 +84,7 @@ def Hist2D(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int
     print(statArray)
     return counts
 
-def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]]) -> np.ndarray:
+def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], **kwargs) -> np.ndarray:
     """
     Plot 2D histogram of the column named colName["x", "y"]. Assuming the column stores an array that is aligned with each other
 
@@ -106,4 +106,24 @@ def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[in
     exploded_pos_y_df = dataFrame.select(posexplode(colName[1]).alias("idx", colName[1]),"row")
     exploded_df = exploded_pos_x_df.join(exploded_pos_y_df, ["row", "idx"])
 
-    return Hist2D(exploded_df, colName, nbins, range)
+    return Hist2D(exploded_df, colName, nbins, range, **kwargs)
+
+def Hist2DArrayVsPos(dataFrame: DataFrame, colName: str, nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], **kwargs) -> np.ndarray:
+    """
+    Plot 2D histogram of the array elements vs these array pos.
+
+    Parameters
+    ----------
+    dataFrame: Input DataFrame
+    colName: Name of the column with a 1D array
+    nbis: Number of bins [nbinsx, nbinsy]
+    range: Histogram range as [x[min, max], y[min, max]]
+
+    Returns
+    -------
+    2D histogram as matplotlib.pyplot.plt
+    """
+    dataFrame = dataFrame.select(colName)
+    exploded_df = dataFrame.select(posexplode(colName))
+    colNames = ["pos", "col"]
+    return Hist2D(exploded_df, colNames, nbins, range, **kwargs)
