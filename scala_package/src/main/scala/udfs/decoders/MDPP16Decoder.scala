@@ -12,7 +12,7 @@ object MDPP16Decoder {
   // MDPP16 TDC header masks and shifts
   val kHeader: Int = 0x00000001
   val kEvent: Int = 0x00000000
-  val kEnder: Int = 0x18000011
+  val kEnder: Int = 0x00000011
   
   val kSubMask: Int = 0xc0000000
   val kSubMaskShift: Int = 30
@@ -53,7 +53,7 @@ object MDPP16Decoder {
           var tmpsize = (evtdata(i) & kTempSizeMask) >> kTempSizeShift
           if (tmpsize + 1 != evtsize) {
             // Size mismatch, break decoding
-            println(s"MDPP16Decoder: Size mismatch detected. Expected ${tmpsize + 1}, got $evtsize")
+            //println(s"MDPP16Decoder: Size mismatch detected. Expected ${tmpsize + 1}, got $evtsize at $i")
             return measurements.toIndexedSeq
           }
           
