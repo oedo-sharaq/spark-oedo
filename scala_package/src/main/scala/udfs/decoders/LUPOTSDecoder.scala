@@ -25,7 +25,7 @@ object LUPOTSDecoder {
       for (i <- 0 until evtsize) {
         evtdata(i) = buffer.getShort()
       }
-      val timestamp = (evtdata(0).toLong & 0xffL) + ((evtdata(1).toLong << 16) ) + ((evtdata(2).toLong << 32) )
+      val timestamp = (evtdata(0) & 0xffffL) + (((evtdata(1) & 0xffffL) << 16) ) + (((evtdata(2) & 0xffffL) << 32) )
       timestamp
 
     } else {

@@ -10,18 +10,19 @@ import java.nio.ByteOrder
 object MiraBabirlDecoder {
   
   // Scala UDF 
-  def decode(binaryData: Array[Byte]): Array[Short] = {
+  def decode(binaryData: Array[Byte]): Array[Int] = {
     if (binaryData == null || binaryData.length < 2) {
-      return Array.empty[Short]
+      return Array.empty[Int]
     }
     
     // Convert byte array to short array
     val buffer = ByteBuffer.wrap(binaryData).order(ByteOrder.LITTLE_ENDIAN)
     val evtsize = binaryData.length / 2
-    val evtdata = new Array[Short](evtsize)
+    val evtdata = new Array[Int](evtsize)
     
     for (i <- 0 until evtsize) {
-      evtdata(i) = buffer.getShort()
+      var value = buffer.getShort()
+      evtdata(i) = (value & 0xFFFF)
     }
     
     evtdata
@@ -43,8 +44,8 @@ object MiraBabirlDecoder {
     tsvalue
   }
   
-  class DecodeMiraSegData extends UDF1[Array[Byte], Array[Short]] {
-    override def call(binaryData: Array[Byte]): Array[Short] = {
+  class DecodeMiraSegData extends UDF1[Array[Byte], Array[Int]] {
+    override def call(binaryData: Array[Byte]): Array[Int] = {
       decode(binaryData)
     }
   }
@@ -57,7 +58,7 @@ object MiraBabirlDecoder {
   // UDFの登録をする関数 (呼び出しはPySparkから)
   // return typeのスキーマを登録する。
   def registerUDF(spark: SparkSession): Unit = {
-    val retType: DataType = ArrayType(ShortType)
+    val retType: DataType = ArrayType(IntegerType)
 
     spark.udf.register("decode_mira_segdata", new DecodeMiraSegData(), retType)
     spark.udf.register("decode_mira_tsdata", new DecodeMiraTSData(), LongType)

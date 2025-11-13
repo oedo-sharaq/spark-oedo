@@ -43,6 +43,7 @@ def create_spark_session(jar_path=None):
         else:
             print("[WARNING] JAR file not found in common locations. Make sure spark-oedo-package JAR is in classpath.")
     
+    builder = builder.config("spark.sql.parquet.columnarReaderBatchSize", "512")
     return builder.getOrCreate()
 
 
