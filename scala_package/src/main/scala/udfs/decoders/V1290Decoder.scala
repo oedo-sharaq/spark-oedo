@@ -7,9 +7,9 @@ import org.apache.spark.sql.Row
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-object V1190Decoder {
+object V1290Decoder {
   
-  // V1190 TDC header masks and shifts
+  // V1290 TDC header masks and shifts
   val kHeaderMask: Int = 0xF8000000
   val kGlobalHeader: Int = 0x40000000
   val kTDCHeader: Int = 0x08000000
@@ -20,14 +20,14 @@ object V1190Decoder {
   
   val kMaskGeometry: Int = 0x0000001F
   val kShiftGeometry: Int = 0
-  val kMaskChannel: Int = 0x03F80000
-  val kShiftChannel: Int = 19
+  val kMaskChannel: Int = 0x03e00000
+  val kShiftChannel: Int = 21
   val kMaskEdgeType: Int = 0x04000000
   val kShiftEdgeType: Int = 26
   val kMaskMeasure: Int = 0x0007FFFF
   val kShiftMeasure: Int = 0
   
-  // Scala UDF (TArtDecoderV1190::Decodeと同等)
+  // Scala UDF (TArtDecoderV1290::Decodeと同等)
   def decode(binaryData: Array[Byte]): Seq[Row] = {
     if (binaryData == null || binaryData.length < 4) {
       return Seq.empty
@@ -86,7 +86,7 @@ object V1190Decoder {
     measurements.toSeq
   }
   
-  class DecodeV1190SegData extends UDF1[Array[Byte], Seq[Row]] {
+  class DecodeV1290SegData extends UDF1[Array[Byte], Seq[Row]] {
     override def call(binaryData: Array[Byte]): Seq[Row] = {
       decode(binaryData)
     }
@@ -103,6 +103,6 @@ object V1190Decoder {
         StructField("edge", IntegerType,  nullable = false)
       )))
 
-    spark.udf.register("decode_v1190_segdata", new DecodeV1190SegData(), retType)
+    spark.udf.register("decode_v1290_segdata", new DecodeV1290SegData(), retType)
   }
 }
