@@ -14,3 +14,4 @@
 !/bin/
 *.pyc
 !SparkOedo.py
+!environment.yaml

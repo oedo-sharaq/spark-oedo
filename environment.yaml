@@ -1,0 +1,16 @@
+name: spark-examples
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pyspark=4.0.1
+  - openjdk=21
+  - pandas
+  - pyarrow
+  - numpy
+  - jupyter
+  - notebook
+  - matplotlib
+  - plotly
+  - scipy
+  - ipympl
