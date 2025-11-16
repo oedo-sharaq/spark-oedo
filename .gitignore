@@ -13,3 +13,4 @@
 !/scala_package/
 !/bin/
 *.pyc
+!SparkOedo.py
