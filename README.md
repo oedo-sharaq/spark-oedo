@@ -38,3 +38,41 @@ This will source setup.sh at `conda activate`
   cd scala_package
   sbt package
   ```
+### without Anaconda
+1. Install python packages by pip
+  ```
+  pip install pyspark=4.0.1 pandas pyarrow numpy jupyter notebook matplotlib plotly scipy ipympl
+  ```
+2. Install JDK
+`apt install openjdk-21-jdk` or download and extract the package from Eclipse Temurin site. <br>
+Set `JAVA_HOME` and `PATH=$JAVA_HOME/bin:$PATH` to your environment
+3. Setup environment
+  ```
+  source setup.sh
+  ```
+4. Follow the step 4. and 5. of installation guide with Anaconda
+
+## Usages
+### RIDF decoder
+- `ridf_to_parquet.py [input_ridf_file] [output_parquet_file]`: It will create a parquet file with ridf blocks as a byte array.
+- `ridf_parquet_processor.py [input_ridf_file] [output_parquet_file]`: It will create a parquet file with ridf segdata as a byte array. `run`, `event_number`, `timestamp`, `fp`, `dev`, `det`, `mod` will be decoded.
+
+### Module decoders
+
+### hist
+- sparkHist1d.py: Functions for 1D histogramming using spark
+  - Hist1D(): Generate a 1D histogram of a column
+  - Hist1DArray(): Generate a 1D histogram of a column which stores an array of values
+- sparkHist2d.py: Functions for 2D histogramming using spark
+  - Hist2D(): Generate a 2D histogram of the correlation between two columns
+  - Hist2DArray(): Generate a 2D histogram of the correlation between two columns that stores arrays with the same size in a same row.
+  - Hist2DArrayVsPos(): Generate a 2D histogram of the array value vs array pos of the column that stores an array.
+- fitHist1d.py: Funcitions for curve fitting of a 1D histogram
+  - FitHist1DGauss(): Initiate an iteractive curve fit widget on previously plotted 1D histogram with Gaussian + linear function in a Jupyter notebook.
+    ```
+    %matplotlib widget
+    Hist1D(df, "colname", 1000, [0, 1000])
+    FitHist1DGauss()
+    ```
+    
+   
