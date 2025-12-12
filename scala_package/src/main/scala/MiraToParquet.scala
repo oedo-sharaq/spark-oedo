@@ -110,7 +110,7 @@ object MiraToParquet {
               // first event is always bad because of firmware issue
               if (i != 1) {
                 results += WaveformRecord(
-                  event_id = i,
+                  event_id = i.toLong,
                   timestamp = currentTimestamp,
                   rev = segRev,
                   dev = segDev,

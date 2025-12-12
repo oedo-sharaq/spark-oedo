@@ -1,4 +1,4 @@
-name: spark-examples
+name: spark-oedo
 channels:
   - conda-forge
   - nodefaults
