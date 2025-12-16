@@ -224,16 +224,38 @@ object StreamingV1ToParquet {
   
   def writeParquetBatch(spark: SparkSession, baseOutputName: String, blocks: ArrayBuffer[TimeFrameBlock], batchNumber: Int): Unit = {
     import spark.implicits._
-    
+
     // Convert blocks to DataFrame
     val df = spark.createDataFrame(blocks.map(block => (block.timeFrameId, block.numSource, block.timeFrameType, block.blockData)).toSeq).toDF("time_frame_id", "num_source", "type", "data")
-    
+    val decoded_df = df.withColumn("decoded_events", expr("decode_tf_block(data)"))
+      .select(
+        col("time_frame_id"),
+        col("num_source"),
+        col("type"),
+        explode(col("decoded_events")).alias("event")
+      )
+      .select(
+        col("time_frame_id"),
+        col("num_source"),
+        col("type"),
+        col("event.version").alias("version"),
+        col("event.magic").alias("magic"),
+        col("event.tfId").alias("tfId"),
+        col("event.femType").alias("femType"),
+        col("event.femId").alias("femId"),
+        col("event.numMessages").alias("numMessages"),
+        col("event.timeSec").alias("timeSec"),
+        col("event.timeUSec").alias("timeUSec"),
+        col("event.subMagic").alias("subMagic"),
+        col("event.data").alias("data")
+      )
+
     // For the first batch, create the directory with overwrite
     // For subsequent batches, append to the same directory
     val writeMode = if (batchNumber == 0) "overwrite" else "append"
     
     // Write to the same Parquet directory for all batches
-    df.coalesce(1)
+    decoded_df.coalesce(1)
       .write
       .mode(writeMode)
       .option("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version", "2")
@@ -261,6 +283,7 @@ object StreamingV1ToParquet {
       .getOrCreate()
     
     spark.sparkContext.setLogLevel("WARN")  // Reduce log verbosity
+    oedo.udfs.decoders.StreamingV1TFDecoder.registerUDF(spark)
     
     try {
       println(s"Starting StreamingV1 conversion: $inputFileName -> $outputFileName")
