@@ -20,18 +20,6 @@ object RidfProcessor {
   
   case class RidfBlock(blockId: Int, blockData: Array[Byte])
   
-  // Structure for decoded event data
-  case class EventData(
-    run_number: Int,
-    event_number: Int,
-    timestamp: Long,
-    fp: Int,
-    dev: Int,
-    det: Int,
-    mod: Int,
-    data: Array[Byte]
-  )
-  
   def generateFileName(baseName: String, sequence: Int): String = {
     if (sequence == 0) {
       baseName
@@ -65,27 +53,24 @@ object RidfProcessor {
     (blockSize, classId, layer)
   }
   
-  // Memory-optimized batch sizes
-  private val BATCH_SIZE = 5000  // Reduced from 10000 to use less memory
-  private val EVENT_BATCH_SIZE = 1000000  // Max events to accumulate before writing
-  private val QUEUE_CAPACITY = 2  // Reduced queue size
-  private val POOL_SIZE = 2
+  
+  
+  // Batch size for processing (number of blocks to accumulate before writing)
+  private val BATCH_SIZE = 10000
+  private var run : Long = 0
   
   // Special marker to indicate end of reading
   case class EndOfData()
   
-  def processRidf(spark: SparkSession, ridfFileName: String, outputFileName: String, nBlock: Long = Long.MaxValue): Unit = {
+  def readRidf(spark: SparkSession, ridfFileName: String, outputFileName: String, nBlock: Long = Long.MaxValue): Unit = {
     val inputStream = new BufferedInputStream(new FileInputStream(ridfFileName))
     
     // Create a blocking queue for batches
-    val batchQueue: BlockingQueue[Either[ArrayBuffer[RidfBlock], EndOfData]] = new LinkedBlockingQueue(QUEUE_CAPACITY) // Buffer up to 3 batches
+    val batchQueue: BlockingQueue[Either[ArrayBuffer[RidfBlock], EndOfData]] = new LinkedBlockingQueue(3) // Buffer up to 3 batches
     
-    // Create thread pool for async processing
-    val executor = Executors.newFixedThreadPool(POOL_SIZE)
+    // Create thread pool for async writing
+    val executor = Executors.newFixedThreadPool(2)
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
-    
-    // Extract run number from first block (block 0)
-    var globalRunNumber = 0
     
     try {
       // Get file size for progress reporting
@@ -93,33 +78,26 @@ object RidfProcessor {
       val fileSize = file.length()
       println(s"File opened: $ridfFileName")
       println(s"File size: $fileSize bytes")
-      println(s"Starting parallel processing: reading and decoding simultaneously...")
+      println(s"Starting parallel processing: reading and writing simultaneously...")
       
       var blockCount = 0L
       var totalBytesRead = 0L
       
-      // Start async processor thread
-      val processorFuture = Future {
+      // Start async writer thread
+      val writerFuture = Future {
         var batchNumber = 0
         var continue = true
         while (continue) {
           batchQueue.take() match {
             case Left(blocks) =>
-              println(f"[PROCESSOR] Processing batch $batchNumber with ${blocks.length} blocks...")
+              println(f"[WRITER] Writing batch $batchNumber with ${blocks.length} blocks...")
               val start = System.currentTimeMillis()
-              
-              // Extract run number from first batch if not set
-              if (globalRunNumber == 0 && blocks.nonEmpty) {
-                globalRunNumber = RIDFBlockDecoder.extractRunNumber(blocks.head.blockData)
-                println(f"[PROCESSOR] Extracted run number: $globalRunNumber")
-              }
-              
-              processAndWriteBatch(spark, outputFileName, blocks, batchNumber, globalRunNumber)
+              writeParquetBatch(spark, outputFileName, blocks, batchNumber)
               val duration = System.currentTimeMillis() - start
-              println(f"[PROCESSOR] Completed batch $batchNumber in ${duration}ms")
+              println(f"[WRITER] Completed batch $batchNumber in ${duration}ms")
               batchNumber += 1
             case Right(_) =>
-              println(s"[PROCESSOR] Finished processing. Total batches: $batchNumber")
+              println(s"[WRITER] Finished writing. Total batches: $batchNumber")
               continue = false
           }
         }
@@ -183,26 +161,26 @@ object RidfProcessor {
           }
         }
         
-        // Send this batch to processor if we have blocks
+        // Send this batch to writer if we have blocks
         if (blocks.nonEmpty) {
           val progress = totalBytesRead.toDouble / fileSize * 100.0
-          println(f"[READER] Queuing batch with ${blocks.length} blocks for processing. Progress: block_count: $blockCount, ${totalBytesRead}bytes/${fileSize}bytes ($progress%.1f%%)")
+          println(f"[READER] Queuing batch with ${blocks.length} blocks for writing. Progress: block_count: $blockCount, ${totalBytesRead}bytes/${fileSize}bytes ($progress%.1f%%)")
           batchQueue.put(Left(blocks)) // This will block if queue is full, providing backpressure
         }
       }
       
-      // Signal end of data to processor
+      // Signal end of data to writer
       batchQueue.put(Right(EndOfData()))
-      println("[READER] Finished reading, waiting for processor to complete...")
+      println("[READER] Finished reading, waiting for writer to complete...")
       
-      // Wait for processor to finish
-      processorFuture.onComplete {
+      // Wait for writer to finish
+      writerFuture.onComplete {
         case Success(_) => println("All processing completed successfully!")
-        case Failure(exception) => println(s"Processor failed: ${exception.getMessage}")
+        case Failure(exception) => println(s"Writer failed: ${exception.getMessage}")
       }
       
-      // Block until processor completes
-      scala.concurrent.Await.result(processorFuture, scala.concurrent.duration.Duration.Inf)
+      // Block until writer completes
+      scala.concurrent.Await.result(writerFuture, scala.concurrent.duration.Duration.Inf)
       
     } finally {
       inputStream.close()
@@ -210,100 +188,61 @@ object RidfProcessor {
     }
   }
   
-  def processAndWriteBatch(spark: SparkSession, baseOutputName: String, blocks: ArrayBuffer[RidfBlock], batchNumber: Int, runNumber: Int): Unit = {
+  def writeParquetBatch(spark: SparkSession, baseOutputName: String, blocks: ArrayBuffer[RidfBlock], batchNumber: Int): Unit = {
     import spark.implicits._
-    
-    // Process blocks in smaller chunks to avoid OOM
-    val eventBatches = ArrayBuffer[ArrayBuffer[EventData]]()
-    var currentBatch = ArrayBuffer[EventData]()
-    
-    blocks.foreach { block =>
-      try {
-        // Decode this block using our existing logic
-        val events = RIDFBlockDecoder.decodeRIDFBlock(block.blockData)
-        
-        events.foreach { eventRow =>
-          val eventNumber = eventRow.getInt(0)
-          val timestamp = eventRow.getLong(1)
-          val segDataArray = eventRow.getAs[Array[org.apache.spark.sql.Row]](2)
-          
-          segDataArray.foreach { segRow =>
-            val fp = segRow.getInt(0)
-            val device = segRow.getInt(1)
-            val detector = segRow.getInt(2)
-            val module = segRow.getInt(3)
-            val address = segRow.getInt(4)
-            val size = segRow.getInt(5)
-            val data = segRow.getAs[Array[Byte]](6)
-            
-            currentBatch += EventData(
-              run_number = runNumber,
-              event_number = eventNumber,
-              timestamp = timestamp,
-              fp = fp,
-              dev = device,
-              det = detector,
-              mod = module,
-              data = data
-            )
-            
-            // Write batch when it gets too large
-            if (currentBatch.length >= EVENT_BATCH_SIZE) {
-              eventBatches += currentBatch
-              currentBatch = ArrayBuffer[EventData]()
-            }
-          }
-        }
-      } catch {
-        case e: Exception =>
-          println(f"[PROCESSOR] Error decoding block ${block.blockId}: ${e.getMessage}")
-      }
+    oedo.udfs.decoders.RIDFBlockDecoder.registerUDF(spark) 
+    // Convert blocks to DataFrame
+    val df = spark.createDataFrame(blocks.map(block => (block.blockId, block.blockData)).toSeq).toDF("block_id", "block_data")
+    if (run == 0) {
+      run = df.withColumn("run", expr("extract_run_number_sql(block_data)")).select("run").as[Long].head()
     }
+
+    val decoded_df =
+      df.withColumn(
+      "decoded_block",
+      expr("decode_ridf_block(block_data)")
+    )
+    .select(col("*"), explode(col("decoded_block")))
+    .select("col.*")
+    .select(
+      col("event_number"),
+      col("timestamp"),
+      explode(col("segdata")).alias("seg")
+    )
+    .select(
+      col("event_number"),
+      col("timestamp"),
+      col("seg.*")
+    )
+    .select(
+      col("event_number"),
+      col("timestamp"),
+      col("fFP").alias("fp"),
+      col("fDevice").alias("dev"),
+      col("fDetector").alias("det"),
+      col("fModule").alias("mod"),
+      col("data")
+    )
+    .withColumn("run", lit(run))
+
+
+    // For the first batch, create the directory with overwrite
+    // For subsequent batches, append to the same directory
+    val writeMode = if (batchNumber == 0) "overwrite" else "append"
     
-    // Add remaining events
-    if (currentBatch.nonEmpty) {
-      eventBatches += currentBatch
-    }
+    // Write to the same Parquet directory for all batches
+    decoded_df.coalesce(1)
+      .write
+      .mode(writeMode)
+      .option("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version", "2")
+      .parquet(baseOutputName)
     
-    // Process each event batch separately to avoid OOM
-    var totalEvents = 0
-    eventBatches.zipWithIndex.foreach { case (eventBatch, subBatchIndex) =>
-      if (eventBatch.nonEmpty) {
-        try {
-          val eventsDF = spark.createDataFrame(eventBatch.toSeq)
-          
-          // For the very first sub-batch, overwrite; for all others, append
-          val writeMode = if (batchNumber == 0 && subBatchIndex == 0) "overwrite" else "append"
-          
-          // Write processed events to Parquet
-          eventsDF.coalesce(1)
-            .write
-            .mode(writeMode)
-            .option("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version", "2")
-            .parquet(baseOutputName)
-          
-          totalEvents += eventBatch.length
-          println(f"[PROCESSOR] Written sub-batch $batchNumber.$subBatchIndex with ${eventBatch.length} events (mode: $writeMode)")
-        } catch {
-          case e: Exception =>
-            println(f"[PROCESSOR] Error writing sub-batch $batchNumber.$subBatchIndex: ${e.getMessage}")
-        } finally {
-          // Help GC by clearing the batch
-          eventBatch.clear()
-        }
-      }
-    }
-    
-    if (totalEvents > 0) {
-      println(f"[PROCESSOR] Completed batch $batchNumber with total $totalEvents decoded events")
-    } else {
-      println(f"[PROCESSOR] No events decoded from batch $batchNumber")
-    }
+    println(f"Written batch $batchNumber with ${blocks.length} blocks to: $baseOutputName (mode: $writeMode)")
   }
   
   def main(args: Array[String]): Unit = {
     if (args.length < 2) {
-      println("Usage: RidfProcessor [input_file] [output_file] [n_block(optional)]")
+      println("Usage: RidfToParquet [input_file] [output_file] [n_block(optional)]")
       sys.exit(1)
     }
     
@@ -311,29 +250,23 @@ object RidfProcessor {
     val outputFileName = args(1)
     val nBlock = if (args.length >= 3) args(2).toLong else Long.MaxValue
     
-    // Create Spark session with memory optimizations
+    // Create Spark session
     val spark = SparkSession.builder()
-      .appName("RIDF Processor - Direct Event Extraction")
+      .appName("RIDF to Parquet Converter")
       .config("spark.sql.adaptive.enabled", "false")
       .config("spark.sql.adaptive.coalescePartitions.enabled", "false")
-      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-      .config("spark.sql.execution.arrow.pyspark.enabled", "false")
-      .config("spark.sql.execution.arrow.maxRecordsPerBatch", "1000")
-      .config("spark.sql.inMemoryColumnarStorage.compressed", "true")
-      .config("spark.sql.parquet.compression.codec", "snappy")
       .master("local[*]")  // Use all available cores locally
       .getOrCreate()
     
     spark.sparkContext.setLogLevel("WARN")  // Reduce log verbosity
     
     try {
-      println(s"Starting RIDF processing: $inputFileName -> $outputFileName")
-      println("This will decode events and save structured data (not raw blocks)")
-      processRidf(spark, inputFileName, outputFileName, nBlock)
-      println("Processing completed successfully")
+      println(s"Starting RIDF conversion: $inputFileName -> $outputFileName")
+      readRidf(spark, inputFileName, outputFileName, nBlock)
+      println("Conversion completed successfully")
     } catch {
       case e: Exception =>
-        println(s"Error during processing: ${e.getMessage}")
+        println(s"Error during conversion: ${e.getMessage}")
         e.printStackTrace()
         sys.exit(1)
     } finally {

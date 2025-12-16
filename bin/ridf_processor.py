@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-RIDF Processor - Python version
-Processes RIDF files and extracts decoded events directly
+RIDF to Parquet Converter - Python version
+Converts RIDF files to Parquet format with event data
 """
 
 import sys
@@ -11,7 +11,7 @@ from pathlib import Path
 from pyspark.sql import SparkSession
 from spark_oedo_utils import find_jar_path, print_jar_info
 
-def create_spark_session(app_name="RIDF Processor"):
+def create_spark_session(app_name="RIDF to Parquet Converter"):
     """Create Spark session with appropriate configuration"""
     
     # Find the JAR file automatically
@@ -34,25 +34,20 @@ def create_spark_session(app_name="RIDF Processor"):
     spark.sparkContext.setLogLevel("WARN")
     return spark
 
-def call_scala_processor(input_file, output_file, max_blocks=None):
-    """Call the Scala RidfProcessor application"""
+def call_scala_converter(input_file, output_file, max_blocks=None):
+    """Call the Scala RidfToParquetSimple application"""
     
     script_dir = Path(__file__).parent.parent
     jar_path = find_jar_path(script_dir)
     
-    # Build spark-submit command with memory optimizations
+    # Build spark-submit command
     cmd = [
         "spark-submit",
-        "--class", "RidfProcessor", 
+        "--class", "RidfProcessor",
         "--master", "local[*]",
-        "--driver-memory", "12g",
-        "--executor-memory", "12g", 
-        "--conf", "spark.driver.maxResultSize=8g",
-        "--conf", "spark.driver.memoryFraction=0.8",
-        "--conf", "spark.storage.memoryFraction=0.6",
-        "--conf", "spark.sql.adaptive.enabled=false",
-        "--conf", "spark.serializer=org.apache.spark.serializer.KryoSerializer",
-        "--conf", "spark.kryoserializer.buffer.max=256m",
+        "--driver-memory", "8g",
+        "--executor-memory", "8g", 
+        "--conf", "spark.driver.maxResultSize=4g",
         "--conf", "spark.sql.execution.arrow.pyspark.enabled=false",
         str(jar_path),
         input_file,
@@ -69,22 +64,16 @@ def call_scala_processor(input_file, output_file, max_blocks=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Process RIDF files and extract decoded events directly",
+        description="Convert RIDF files to Parquet format with raw block data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s input.ridf output.parquet
   %(prog)s input.ridf output.parquet --max-blocks 10000
   
-Output format (decoded events):
-  - run_number: Integer
-  - event_number: Integer  
-  - timestamp: Long
-  - fp: Integer (focal plane)
-  - dev: Integer (device)
-  - det: Integer (detector)
-  - mod: Integer (module)
-  - data: Binary array
+Output format:
+  - block_id: Integer (0, 1, 2, ...)
+  - block_data: Binary array (raw RIDF block bytes)
         """)
     
     parser.add_argument("input_file", help="Input RIDF file path")
@@ -99,34 +88,31 @@ Output format (decoded events):
         print(f"Error: Input file '{args.input_file}' does not exist")
         sys.exit(1)
     
-    print("RIDF Event Processor")
+    print("RIDF to Parquet Converter")
     print("=" * 50)
     print(f"Input:  {args.input_file}")
     print(f"Output: {args.output_file}")
     if args.max_blocks:
         print(f"Max blocks: {args.max_blocks:,}")
-    print(f"Mode: Event extraction and decoding")
+    print(f"Mode: Raw block data conversion")
     print()
     
     try:
-        success = call_scala_processor(args.input_file, args.output_file, args.max_blocks)
+        success = call_scala_converter(args.input_file, args.output_file, args.max_blocks)
         
         if success:
-            print("\n✓ Processing completed successfully!")
-            print(f"Output created: {args.output_file}")
-            print("\nThe output contains decoded events with columns:")
-            print("  run_number, event_number, timestamp, fp, dev, det, mod, data")
+            print("\n✓ Conversion completed successfully!")
+            print(f"Output files created: {args.output_file}")
             print("\nYou can read the result in PySpark with:")
             print(f"  df = spark.read.parquet('{args.output_file}')")
             print("  df.printSchema()")
             print("  df.show()")
-            print("  df.groupBy('det', 'dev').count().show()  # Show detector/device counts")
         else:
-            print("\n✗ Processing failed!")
+            print("\n✗ Conversion failed!")
             sys.exit(1)
             
     except Exception as e:
-        print(f"\n✗ Error during processing: {e}")
+        print(f"\n✗ Error during conversion: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
