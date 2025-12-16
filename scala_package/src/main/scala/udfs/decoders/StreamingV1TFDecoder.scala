@@ -67,7 +67,7 @@ object StreamingV1TFDecoder {
     val headerBuffer = ByteBuffer.wrap(bytes, offset, SUBTIME_HEADER_LENGTH_SIZE).order(ByteOrder.LITTLE_ENDIAN)
     val tfId = headerBuffer.getInt()
     val femType = headerBuffer.getInt()
-    val femId = headerBuffer.getInt()
+    val femId = headerBuffer.getInt() & 0xFFFF
     val numMessages = headerBuffer.getInt()
     val timeSec = headerBuffer.getLong()
     val timeUSec = headerBuffer.getLong()
