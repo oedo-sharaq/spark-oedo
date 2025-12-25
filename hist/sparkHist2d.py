@@ -84,7 +84,7 @@ def Hist2D(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int
     print(np.flip(np.swapaxes(statArray, 0, 1),0))
     return counts
 
-def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], **kwargs) -> np.ndarray:
+def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], filter: str = None, **kwargs) -> np.ndarray:
     """
     Plot 2D histogram of the column named colName["x", "y"]. Assuming the column stores an array that is aligned with each other
 
@@ -94,6 +94,7 @@ def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[in
     colName: Column names to plot [x, y]
     nbis: Number of bins [nbinsx, nbinsy]
     range: Histogram range as [x[min, max], y[min, max]]
+    filter: Optional filter string to apply after exploding before histogramming
 
     Returns
     -------
@@ -105,7 +106,8 @@ def Hist2DArrays(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[in
     exploded_pos_x_df = dataFrame.select(posexplode(colName[0]).alias("idx", colName[0]),"row")
     exploded_pos_y_df = dataFrame.select(posexplode(colName[1]).alias("idx", colName[1]),"row")
     exploded_df = exploded_pos_x_df.join(exploded_pos_y_df, ["row", "idx"])
-
+    if filter is not None:
+        exploded_df = exploded_df.filter(filter)
     return Hist2D(exploded_df, colName, nbins, range, **kwargs)
 
 def Hist2DArrayVsPos(dataFrame: DataFrame, colName: str, nbins: tuple[int, int], range: tuple[tuple[float, float], tuple[float, float]], **kwargs) -> np.ndarray:
