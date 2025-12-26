@@ -16,7 +16,7 @@ object StreamingV1ToParquet {
   private val WORD_SIZE = 4
   private val MAX_FILE_SIZE = 2L * 1024 * 1024 * 1024  // 2GB
   
-  case class TimeFrameBlock(timeFrameId: Int, numSource: Int, timeFrameType: Int, blockData: Array[Byte])
+  case class TimeFrameBlock(run: Int, timeFrameId: Int, numSource: Int, timeFrameType: Int, blockData: Array[Byte])
   
   def generateFileName(baseName: String, sequence: Int): String = {
     if (sequence == 0) {
@@ -185,7 +185,7 @@ object StreamingV1ToParquet {
                   continueReading = false
                 } else {
                   // Add block to current batch
-                  blocks += TimeFrameBlock(timeFrameId, numSource, blockType, dataBlock)
+                  blocks += TimeFrameBlock(runNumber, timeFrameId, numSource, blockType, dataBlock)
                   blockCount += 1
                   batchBlockCount += 1
                   totalBytesRead += blockDataSize
@@ -226,15 +226,17 @@ object StreamingV1ToParquet {
     import spark.implicits._
 
     // Convert blocks to DataFrame
-    val df = spark.createDataFrame(blocks.map(block => (block.timeFrameId, block.numSource, block.timeFrameType, block.blockData)).toSeq).toDF("time_frame_id", "num_source", "type", "data")
+    val df = spark.createDataFrame(blocks.map(block => (block.run, block.timeFrameId, block.numSource, block.timeFrameType, block.blockData)).toSeq).toDF("run", "time_frame_id", "num_source", "type", "data")
     val decoded_df = df.withColumn("decoded_events", expr("decode_tf_block(data)"))
       .select(
+        col("run"),
         col("time_frame_id"),
         col("num_source"),
         col("type"),
         explode(col("decoded_events")).alias("event")
       )
       .select(
+        col("run"),
         col("time_frame_id"),
         col("num_source"),
         col("type"),
