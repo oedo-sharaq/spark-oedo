@@ -64,7 +64,7 @@ Set `JAVA_HOME` and `PATH=$JAVA_HOME/bin:$PATH` to your environment
   ```
   source setup.sh
   ```
-4. Follow the step 4. and 5. of installation guide with Anaconda
+4. Follow the step 4. to 6. of installation guide with Anaconda
 
 ## Usages
 ### RIDF decoder
