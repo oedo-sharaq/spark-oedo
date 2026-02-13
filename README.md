@@ -38,6 +38,20 @@ This will source setup.sh at `conda activate`
   cd scala_package
   sbt package
   ```
+6. Setup spark defaults (Optional)
+   - add SPARK_HOME to $CONDA_PREFIX/lib/pythonX.XX/site-packages/pyspark
+   ``` env_vars.sh
+   export SPARK_HOME=$CONDA_PREFIX/lib/python3.12/site-packages/pyspark
+   ```
+   - Create spark-defaults.conf in $SPARK_HOME/conf/ and list default spark configs like following
+   ``` spark-defaults.conf
+    spark.master                     local[20]
+    spark.driver.memory              10g
+    spark.executor.memory            10g
+
+    spark.serializer                 org.apache.spark.serializer.KryoSerializer
+    spark.jars                       /home/h487/opt/spark-oedo/scala_package/target/scala-2.13/spark-oedo-package_2.13-1.0.jar
+   ```
 ### without Anaconda
 1. Install python packages by pip
   ```
