@@ -68,6 +68,18 @@ def Hist2D(dataFrame: DataFrame, colName: tuple[str, str], nbins: tuple[int, int
             counts[bin_x-1, bin_y-1] = row['count']
         statArray[idx,idy] = statArray[idx,idy] + row['count']
 
+    # If using a logarithmic norm, ensure we don't pass invalid vmin/vmax when counts are all zero.
+    norm = kwargs.get('norm', None)
+    if norm is not None and hasattr(norm, 'vmin'):
+        # adjust for zero-filled data
+        if counts.max() == 0:
+            # drop norm or set a safe vmin
+            from matplotlib.colors import LogNorm
+            if isinstance(norm, LogNorm):
+                # avoid log of zero by disabling norm
+                kwargs.pop('norm', None)
+                norm = None
+                
     # Plot the 2D histogram using a heatmap
     plt.imshow(counts.T, extent=[range[0][0], range[0][1], range[1][0], range[1][1]], origin='lower', aspect='auto', **kwargs)
 

@@ -1,7 +1,8 @@
-from pyspark.sql.functions import DataFrame, explode
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import explode
 import matplotlib.pyplot as plt
 
-def Hist1D(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, float]) -> plt:
+def Hist1D(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, float], **kwargs) -> plt:
     """
     Plot 1D histogram of the column named "colName". Assuming the column stores a value per row
 
@@ -22,7 +23,7 @@ def Hist1D(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[float, f
     filtered_df = pandas_df[(pandas_df[colName] >= range[0]) & (pandas_df[colName] <= range[1])]
 
     # Step 3: Plot the histogram
-    plt.hist(filtered_df[colName], bins=nbins, range=(range[0], range[1]),)
+    plt.hist(filtered_df[colName], bins=nbins, range=(range[0], range[1]),**kwargs)
 
     # Add labels and title
     plt.xlabel(colName)
