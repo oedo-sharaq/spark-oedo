@@ -15,7 +15,7 @@ Disable it by `conda config --set auto_activate false`.
 Requirements are listed in environment.yaml.
   ```
   conda env create -f environment.yaml
-  conda activate spark-examples
+  conda activate spark-oedo
   ```
 Try `pyspark` to check if the environment is ready. <br>
 
