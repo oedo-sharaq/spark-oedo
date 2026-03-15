@@ -48,7 +48,7 @@ scalacOptions ++= Seq(
 
 // JVM options for Arrow compatibility
 javaOptions in run ++= Seq(
-  "-Xmx4g",
+  "-Xmx8g",
   "-XX:+UseG1GC",
   "--add-opens=java.base/java.nio=ALL-UNNAMED"
 )
