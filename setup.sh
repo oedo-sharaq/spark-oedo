@@ -16,6 +16,8 @@ if [[ ":$PYTHONPATH:" != *":$SPARK_OEDO_HOME:"* ]]; then
     export PYTHONPATH="$SPARK_OEDO_HOME:$PYTHONPATH"
 fi
 
+export SPARK_HOME=$CONDA_PREFIX/lib/python3.12/site-packages/pyspark
+
 # Function to build the Scala package
 build_spark_oedo() {
     echo "Building spark-oedo Scala package..."
