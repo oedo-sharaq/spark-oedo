@@ -1,5 +1,7 @@
 import java.io._
 import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.file.{Files, Paths}
+import java.util.concurrent.Executors
 import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 import scala.util.control.Breaks._
 import org.apache.hadoop.conf.Configuration
@@ -10,14 +12,8 @@ import org.apache.parquet.schema.Types
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
 import org.apache.parquet.example.data.simple.SimpleGroupFactory
 import org.apache.parquet.hadoop.example.ExampleParquetWriter
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
-import org.apache.parquet.hadoop.ParquetWriter
-import org.apache.parquet.hadoop.metadata.CompressionCodecName
-import org.apache.parquet.schema.Types
-import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName._
-import org.apache.parquet.example.data.simple.SimpleGroupFactory
-import org.apache.parquet.hadoop.example.ExampleParquetWriter
+import scala.concurrent._
+import scala.concurrent.duration._
 
 case class WaveformRecord(
   event_id: Long,
@@ -157,7 +153,6 @@ object MiraToParquet {
     
     val writer = ExampleParquetWriter.builder(path)
       .withWriteMode(org.apache.parquet.hadoop.ParquetFileWriter.Mode.OVERWRITE)
-      .withRowGroupSize(ParquetWriter.DEFAULT_BLOCK_SIZE)
       .withPageSize(ParquetWriter.DEFAULT_PAGE_SIZE)
       .withCompressionCodec(CompressionCodecName.SNAPPY)
       .withConf(conf)
@@ -191,8 +186,25 @@ object MiraToParquet {
   }
 
   def main(args: Array[String]): Unit = {
-    val inputFile = if (args.length > 0) args(0) else "test.dat"
-    val outputFile = if (args.length > 1) args(1) else "test_output.parquet"
+    if (args.length < 2) {
+      println("Usage: MiraToParquet <input_file.dat> <output_dir> [chunk_size]")
+      System.exit(1)
+    }
+    
+    val inputFile = args(0)
+    val outputDir = args(1)
+    val chunkSize = if (args.length > 2) args(2).toInt else 10000
+    val numThreads = 8
+    
+    // Create output directory if it doesn't exist
+    val outputPath = Paths.get(outputDir)
+    if (!Files.exists(outputPath)) {
+      Files.createDirectories(outputPath)
+    }
+    
+    // Create a fixed thread pool with 8 threads
+    val executor = Executors.newFixedThreadPool(numThreads)
+    implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(executor)
     
     val startTime = System.currentTimeMillis()
     
@@ -202,13 +214,29 @@ object MiraToParquet {
     println(s"Found ${waveforms.length} waveform records")
     
     if (waveforms.nonEmpty) {
-      println(s"Writing to Parquet: $outputFile")
-      writeToParquet(waveforms, outputFile)
+      // Split into chunks of fixed size
+      val chunks = waveforms.grouped(chunkSize).toArray
+      
+      val futures = chunks.zipWithIndex.map { case (chunk, index) =>
+        Future {
+          val outputFile = s"$outputDir/part_$index.parquet"
+          println(s"Writing ${chunk.length} records to Parquet: $outputFile")
+          writeToParquet(chunk, outputFile)
+        }
+      }.toSeq
+      
+      // Wait for all futures to complete
+      Await.result(Future.sequence(futures), Duration.Inf)
+      
+      println(s"Successfully wrote ${waveforms.length} records to ${chunks.length} Parquet files in $outputDir")
     } else {
       println("No waveform data found!")
     }
     
     val endTime = System.currentTimeMillis()
     println(s"Total processing time: ${endTime - startTime} ms")
+    
+    // Shutdown the executor
+    executor.shutdown()
   }
 }

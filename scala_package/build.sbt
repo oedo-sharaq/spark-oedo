@@ -46,6 +46,9 @@ scalacOptions ++= Seq(
   "-Ywarn-numeric-widen"
 )
 
+// Set main class to avoid multiple main classes warning
+mainClass in Compile := Some("MiraToParquet")
+
 // JVM options for Arrow compatibility
 javaOptions in run ++= Seq(
   "-Xmx8g",
