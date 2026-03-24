@@ -33,13 +33,14 @@ This will source setup.sh at `conda activate`
   ```
   curl -fL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz | gzip -d > cs && chmod +x cs && ./cs install scala:2.13.16 scalac:2.13.16 --install-dir ./temp_bin && ./cs setup --install-dir ./temp_bin && mv ./cs $CONDA_PREFIX/bin/ && mv ./temp_bin/* $CONDA_PREFIX/bin/ && rm -r ./temp_bin
   ```
+  Answer "n" to the question that you will be asked.
 5. Compile scala_package
   ```
   cd scala_package
   sbt package
   ```
 6. Setup spark defaults (Optional)
-   - add SPARK_HOME to $CONDA_PREFIX/lib/pythonX.XX/site-packages/pyspark
+   - add SPARK_HOME=$CONDA_PREFIX/lib/pythonX.XX/site-packages/pyspark to your $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
    ``` env_vars.sh
    export SPARK_HOME=$CONDA_PREFIX/lib/python3.12/site-packages/pyspark
    ```
@@ -51,6 +52,10 @@ This will source setup.sh at `conda activate`
 
     spark.serializer                 org.apache.spark.serializer.KryoSerializer
     spark.jars                       /home/h487/opt/spark-oedo/scala_package/target/scala-2.13/spark-oedo-package_2.13-1.0.jar
+   ```
+   - reactivate spark-oedo
+   ```
+   conda activate spark-oedo
    ```
 ### without Anaconda
 1. Install python packages by pip
