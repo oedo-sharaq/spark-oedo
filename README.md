@@ -31,7 +31,7 @@ This will source setup.sh at `conda activate`
 
 4. Install and setup Scala to the conda environment.
   ```
-  curl -fL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz | gzip -d > cs && chmod +x cs && ./cs install scala:2.13.16 scalac:2.13.16 --install-dir ./temp_bin && ./cs setup --install-dir ./temp_bin && mv ./cs $CONDA_PREFIX/bin/ && mv ./temp_bin/* $CONDA_PREFIX/bin/ && rm -r ./temp_bin
+  curl -fL https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz | gzip -d > cs && chmod +x cs && ./cs install scala:2.13.16 scalac:2.13.16 sbt:1.12.14 --install-dir ./temp_bin && ./cs setup --install-dir ./temp_bin && mv ./cs $CONDA_PREFIX/bin/ && mv ./temp_bin/* $CONDA_PREFIX/bin/ && rm -r ./temp_bin
   ```
   Answer "n" to the question that you will be asked.
 5. Compile scala_package
