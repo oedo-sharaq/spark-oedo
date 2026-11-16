@@ -2,17 +2,10 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from sparkOEDOModules.procModules import tref, manipulation, mapper, tot, calibrator, constants, monotoneTableConverter
 from sparkOEDOModules.detectorProcs.srppac import srppacPosDqdx
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--input", help="input file name", required=True)
-parser.add_argument("--partitions", help="number of partitions", nargs='?', const=1, type=int)
-parser.add_argument("--full", help="output full time charge data", action="store_true")
-parser.add_argument("--require", help="required ppac name. Rows without this ppac column will be deleted")
-args = parser.parse_args()
 
 #DETECTOR_NAMES = ["sr91","sr92","src1","src2","sr11","sr12"]
-DETECTOR_NAMES = ["sr0"]
+#DETECTOR_NAMES = ["sr0"]
+DETECTOR_NAMES = ["sr91"]
 
 mapping_df = None
 tref_mapping_df = None
@@ -28,11 +21,18 @@ def LoadCSVFiles(spark: SparkSession):
     """
     global mapping_df, tref_mapping_df, udf_dict
     if mapping_df is None:
-        mapping_df = mapper.ReadMapCSV(spark, "srppac.csv", DETECTOR_NAMES)
-        tref_mapping_df = tref.ReadCSV(spark)
+        # 全ファイルの読み込みに成功してから設定を反映する。
+        new_mapping = mapper.ReadMapCSV(spark, 'srppac.csv', DETECTOR_NAMES)
+        new_tref = tref.ReadCSV(spark)
+        new_udfs = {}
         for det in DETECTOR_NAMES:
-            udf_dict[det+"_xc0"] = monotoneTableConverter.getConverterUDF(spark,"srppac/"+det+"_xc0.csv")
-            udf_dict[det+"_yc0"] = monotoneTableConverter.getConverterUDF(spark,"srppac/"+det+"_yc0.csv")
+            new_udfs[det + '_xc0'] = monotoneTableConverter.getConverterUDF(
+                spark, 'srppac/' + det + '_xc0.csv')
+            new_udfs[det + '_yc0'] = monotoneTableConverter.getConverterUDF(
+                spark, 'srppac/' + det + '_yc0.csv')
+        mapping_df, tref_mapping_df, udf_dict = new_mapping, new_tref, new_udfs
+
+
 
 def Process(rawDF: DataFrame, full: bool, require: str) -> DataFrame:
     """
@@ -65,11 +65,9 @@ def Process(rawDF: DataFrame, full: bool, require: str) -> DataFrame:
     df = tot.Tot(df)
     df = calibrator.ToFloat(df,"charge", 0, 0.09765627)
     df = calibrator.ToFloat(df,"timing", 0, 0.09765627)
-
-    # process for each ppac
-    ppacList = DETECTOR_NAMES
     srppac_df = rawDF.select(constants.ID_COLNAME).dropDuplicates([constants.ID_COLNAME])
-    for ppac in ppacList:
+
+    for ppac in DETECTOR_NAMES:
         df_a = df.filter(F.col("cat") == ppac+"a")
         df_x = df.filter(F.col("cat") == ppac+"x")
         df_y = df.filter(F.col("cat") == ppac+"y")
@@ -117,25 +115,27 @@ def Process(rawDF: DataFrame, full: bool, require: str) -> DataFrame:
 
     return srppac_df
  
-if __name__ == '__main__':
-    # Initialize Spark session
-    if constants.SERVER_TYPE == "aws":
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', help='input file name', required=True)
+    parser.add_argument('--partitions', help='number of partitions', nargs='?', const=1, type=int)
+    parser.add_argument('--full', help='output full time charge data', action='store_true')
+    parser.add_argument('--require', help='required ppac name. Rows without this ppac column will be deleted')
+    args = parser.parse_args()
+    if constants.SERVER_TYPE == 'aws':
         spark = SparkSession.builder.getOrCreate()
     else:
-        spark = SparkSession.builder \
-                .master(constants.MASTER) \
-                .appName("SRPPAC") \
-                .config("spark.driver.memory","20g") \
-                .config("spark.executor.memory","20g") \
-                .getOrCreate()
-
-    # Read the parquet file
-    raw_df = spark.read.parquet(constants.DATA_PATH+"/"+args.input+".parquet")
-
-    if args.partitions != None:
+        spark = (SparkSession.builder.master(constants.MASTER).appName('SRPPAC')
+                 .config('spark.driver.memory', '20g').config('spark.executor.memory', '20g').getOrCreate())
+    raw_df = spark.read.parquet(constants.DATA_PATH + '/' + args.input + '.parquet')
+    if args.partitions is not None:
         raw_df = raw_df.repartition(args.partitions)
     exploded_df = mapper.ExplodeRawData(raw_df)
     LoadCSVFiles(spark)
     srppac_df = Process(exploded_df, args.full, args.require)
-    srppac_df.write.mode("overwrite").parquet(constants.DATA_PATH+"/"+args.input+f"_srppac.parquet")
-    
+    srppac_df.write.mode('overwrite').parquet(constants.DATA_PATH + '/' + args.input + '_srppac.parquet')
+
+
+if __name__ == '__main__':
+    main()
