@@ -101,3 +101,145 @@ def Hist1DArrays(dataFrame: DataFrame, colName: str, nbins: int, range: tuple[fl
     exploded_df = dataFrame.select(explode(colName).alias(colName))
 
     return Hist1D(exploded_df, colName, nbins, range, **kwargs)
+
+
+from pyspark.sql import functions as F
+from matplotlib import pyplot as plt
+import numpy as np
+
+
+def Hist1D_floor(
+    df,
+    colName,
+    nbins,
+    range,
+    **kwargs
+):
+    """
+    Spark DataFrame 用 軽量1D histogram
+    floor ベース
+
+    Returns
+    -------
+    dict
+        {
+            "hist": hist,
+            "underflow": underflow,
+            "overflow": overflow,
+            "inside": inrange,
+            "total": total
+        }
+    """
+
+    xmin, xmax = range
+
+    bin_width = (xmax - xmin) / nbins
+
+    # --------------------------------
+    # bin index
+    #
+    # underflow : -1
+    # normal    : 0 ~ nbins-1
+    # overflow  : nbins
+    # --------------------------------
+    hist_df = (
+        df
+        .filter(F.col(colName).isNotNull())
+        .withColumn(
+            "bin",
+            F.when(
+                F.col(colName) < xmin,
+                -1
+            )
+            .when(
+                F.col(colName) >= xmax,
+                nbins
+            )
+            .otherwise(
+                F.floor((F.col(colName) - xmin) / bin_width)
+            )
+        )
+    )
+
+    # --------------------------------
+    # count
+    # --------------------------------
+    grouped = (
+        hist_df
+        .groupBy("bin")
+        .count()
+    )
+
+    histogram_data = grouped.collect()
+
+    # --------------------------------
+    # numpy histogram
+    # --------------------------------
+    hist = np.zeros(nbins)
+
+    underflow = 0
+    overflow = 0
+    inrange = 0
+
+    for row in histogram_data:
+
+        bin_index = int(row["bin"])
+        count = row["count"]
+
+        # underflow
+        if bin_index == -1:
+            underflow = count
+
+        # overflow
+        elif bin_index == nbins:
+            overflow = count
+
+        # inside
+        else:
+            hist[bin_index] = count
+            inrange += count
+
+    total = underflow + inrange + overflow
+
+    # --------------------------------
+    # x axis
+    # --------------------------------
+    xedges = np.linspace(xmin, xmax, nbins + 1)
+
+    # bin centers
+    xcenters = (xedges[:-1] + xedges[1:]) / 2
+
+    # --------------------------------
+    # plot
+    # --------------------------------
+    plt.step(xcenters, hist, where="mid", **kwargs)
+
+    plt.fill_between(
+        xcenters,
+        hist,
+        step="mid",
+        alpha=0.5
+    )
+
+    plt.xlabel(colName)
+    plt.ylabel("Counts")
+
+    # --------------------------------
+    # statistics
+    # --------------------------------
+    print(
+        "Total entries: {}, Underflow: {}, Inside: {}, Overflow: {}".format(
+            total,
+            underflow,
+            inrange,
+            overflow
+        )
+    )
+
+    return {
+        "hist": hist,
+        "underflow": underflow,
+        "overflow": overflow,
+        "inside": inrange,
+        "total": total
+    }

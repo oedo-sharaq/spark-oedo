@@ -141,3 +141,100 @@ def Hist2DArrayVsPos(dataFrame: DataFrame, colName: str, nbins: tuple[int, int],
     exploded_df = dataFrame.select(posexplode(colName))
     colNames = ["pos", "col"]
     return Hist2D(exploded_df, colNames, nbins, range, **kwargs)
+
+from pyspark.sql import functions as F
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def Hist2D_floor(
+    df,
+    colName,
+    nbins,
+    range_,
+    **kwargs
+):
+    """
+    Spark DataFrame 用 軽量2D histogram
+    Bucketizer を使わず floor ベースで binning
+    """
+
+    xcol, ycol = colName
+
+    nbins_x, nbins_y = nbins
+
+    xmin, xmax = range_[0]
+    ymin, ymax = range_[1]
+
+    xwidth = (xmax - xmin) / nbins_x
+    ywidth = (ymax - ymin) / nbins_y
+
+    # -----------------------------
+    # bin index 計算
+    # -----------------------------
+    hist_df = (
+        df
+        .filter(
+            F.col(xcol).isNotNull() &
+            F.col(ycol).isNotNull()
+        )
+        .withColumn(
+            "bin_x",
+            F.floor((F.col(xcol) - xmin) / xwidth)
+        )
+        .withColumn(
+            "bin_y",
+            F.floor((F.col(ycol) - ymin) / ywidth)
+        )
+    )
+
+    # 範囲内のみ
+    hist_df = hist_df.filter(
+        (F.col("bin_x") >= 0) &
+        (F.col("bin_x") < nbins_x) &
+        (F.col("bin_y") >= 0) &
+        (F.col("bin_y") < nbins_y)
+    )
+
+    # -----------------------------
+    # group count
+    # -----------------------------
+    grouped = (
+        hist_df
+        .groupBy("bin_x", "bin_y")
+        .count()
+    )
+
+    # collect 最小限
+    data = grouped.collect()
+
+    # -----------------------------
+    # numpy histogram 作成
+    # -----------------------------
+    hist = np.zeros((nbins_y, nbins_x))
+
+    for row in data:
+        bx = int(row["bin_x"])
+        by = int(row["bin_y"])
+        hist[by, bx] = row["count"]
+
+    # -----------------------------
+    # plot
+    # -----------------------------
+    extent = [xmin, xmax, ymin, ymax]
+
+    im=plt.imshow(
+        hist,
+        origin="lower",
+        aspect="auto",
+        extent=extent,
+        **kwargs
+    )
+
+    plt.xlabel(xcol)
+    plt.ylabel(ycol)
+    # colorbar
+    plt.colorbar(im, label="Counts")
+    
+    return hist
+
